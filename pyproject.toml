@@ -1,0 +1,49 @@
+[tool.poetry]
+name = "recsys"
+version = "0.0.1"
+description = ""
+authors = [
+    "Jorit Studer <jorit.studer@gmail.com>"
+]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+torch = "^2.0.1"
+ruff = "^0.0.280"
+pandas = "^2.0.3"
+
+[tool.poetry.dev-dependencies]
+black = "^23.7.0"
+isort = "^5.12.0"
+mypy = "^1.4.1"
+pytest = "^7.4.0"
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.24.0"
+
+[tool.pytest.ini_options]
+addopts = "-vvv"
+testpaths = "tests"
+
+[tool.black]
+line-length = 119
+
+[tool.ruff]
+exclude = [
+    ".venv",
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "venv",
+]
+line-length = 120
+select = ["E", "F", "W"]
+ignore = ["E501", "F405"]
+fix = true
+
+[build-system]
+requires = ["poetry-core>=1.2.0"]
+build-backend = "poetry.core.masonry.api"
