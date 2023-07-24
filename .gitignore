@@ -161,3 +161,7 @@ cython_debug/
 
 # macos
 .DS_Store
+
+# project
+/data/preprocessed/
+/notebooks/
