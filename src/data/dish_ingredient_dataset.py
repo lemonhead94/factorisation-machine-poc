@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 
 
 # Bipartie Graph Data Loader for Dish and Ingredient Interaction Data
-# will be use as a Graph Embedding for the Factorisation Machine
+# will be used as a Graph Embedding for the Factorization Machine
 class DishIngredientDataset(Dataset):
     def __init__(self, data: np.ndarray, dims: np.ndarray):
         """
@@ -18,6 +18,6 @@ class DishIngredientDataset(Dataset):
 
     def __getitem__(self, index):
         """
-        Return the pairs dish-ingredient and the target.
+        Return the pairs dish, ingredient, and the dimensions.
         """
-        return self.interactions[index][:-1], self.interactions[index][-1]
+        return self.interactions[index][:-1], self.interactions[index][-1], self.dims
