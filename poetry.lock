@@ -2414,6 +2414,34 @@ typing-extensions = "*"
 opt-einsum = ["opt-einsum (>=3.3)"]
 
 [[package]]
+name = "torch-geometric"
+version = "2.3.1"
+description = "Graph Neural Network Library for PyTorch"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "torch_geometric-2.3.1.tar.gz", hash = "sha256:454fd0bbc128a17a4b9d15010ba9f66d48ec8cd7277991b888a7770263fa125d"},
+]
+
+[package.dependencies]
+jinja2 = "*"
+numpy = "*"
+psutil = ">=5.8.0"
+pyparsing = "*"
+requests = "*"
+scikit-learn = "*"
+scipy = "*"
+tqdm = "*"
+
+[package.extras]
+benchmark = ["matplotlib", "networkx", "pandas", "protobuf (<4.21)", "wandb"]
+dev = ["onnx", "onnxruntime", "pre-commit", "pytest", "pytest-cov"]
+full = ["ase", "captum", "graphviz", "h5py", "huggingface_hub", "hydra-core", "matplotlib", "networkx", "numba", "opt_einsum", "pandas", "pgmpy", "protobuf (<4.21)", "pytorch-lightning", "pytorch-memlab", "rdflib", "scikit-image", "statsmodels", "sympy", "tabulate", "torchmetrics", "trimesh", "yacs"]
+graphgym = ["hydra-core", "protobuf (<4.21)", "pytorch-lightning", "yacs"]
+modelhub = ["huggingface_hub"]
+test = ["onnx", "onnxruntime", "pytest", "pytest-cov"]
+
+[[package]]
 name = "tornado"
 version = "6.3.2"
 description = "Tornado is a Python web framework and asynchronous networking library, originally developed at FriendFeed."
@@ -2584,4 +2612,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "b4a36f004545c80129f0256356a1e2fab6134994248ccf5fbc515ada592078db"
+content-hash = "860660108b085462cdc0e16a007c3559732fe9099b1b408bb043b4caa343b529"
