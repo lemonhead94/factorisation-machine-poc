@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 from torch_geometric.nn import GATConv, GCNConv
 
@@ -8,11 +10,11 @@ class BaseGCELayer(torch.nn.Module):
         field_dims: int,
         embedding_dim: int,
         features: torch.Tensor,
-        attention_vec: torch.Tensor,
-        attention: bool = False,
-        attention_dropout: float = 0.4,
-        num_multi_head_attentions: int = 8,
-        cooccurrence_weight: float = 1.0,
+        cooccurrence_weight: float,
+        attention_vec: Optional[torch.Tensor] = None,
+        attention: Optional[bool] = False,
+        attention_dropout: Optional[float] = 0.4,
+        num_multi_head_attentions: Optional[int] = 8,
     ) -> None:
         super().__init__()
         self.attention_vec = attention_vec
@@ -43,46 +45,38 @@ class GCELayerDishIngredient(BaseGCELayer):
         field_dims: int,
         embedding_dim: int,
         features_dish_ingredient: torch.Tensor,
-        attention_vec_dish_ingredient: torch.Tensor,
-        attention: bool = False,
         cooccurrence_weight: float = 1.0,
     ) -> None:
         super().__init__(
-            field_dims,
-            embedding_dim,
-            features_dish_ingredient,
-            attention_vec_dish_ingredient,
-            attention=attention,
+            field_dims=field_dims,
+            embedding_dim=embedding_dim,
+            features=features_dish_ingredient,
             cooccurrence_weight=cooccurrence_weight,
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Custom forward pass for dish-ingredient interactions
-        gce_embeddings = self.graph_conv(self.features, self.attention_vec)[x]
+        gce_embeddings = self.graph_conv(self.features)[x]
         user_ingredient_embeddings = torch.mul(gce_embeddings, self.cooccurrence_weight)
         return user_ingredient_embeddings
 
 
-class GCELayerUserDish(BaseGCELayer):
+class GCELayerUserIngredient(BaseGCELayer):
     def __init__(
         self,
         field_dims: int,
         embedding_dim: int,
-        features_user_dish: torch.Tensor,
-        attention_vec_user_dish: torch.Tensor,
-        attention: bool = False,
+        features_user_ingredient: torch.Tensor,
         cooccurrence_weight: float = 1.0,
     ) -> None:
         super().__init__(
-            field_dims,
-            embedding_dim,
-            features_user_dish,
-            attention_vec_user_dish,
-            attention=attention,
+            field_dims=field_dims,
+            embedding_dim=embedding_dim,
+            features=features_user_ingredient,
             cooccurrence_weight=cooccurrence_weight,
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Custom forward pass for user-dish interactions
-        gce_embeddings = self.graph_conv(self.features, self.attention_vec)[x]
+        gce_embeddings = self.graph_conv(self.features)[x]
         return torch.Tensor(gce_embeddings)

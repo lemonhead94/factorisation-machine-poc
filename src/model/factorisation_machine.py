@@ -1,9 +1,9 @@
-from typing import List, Optional, Tuple
+from typing import Tuple
 
 import torch
 import torch.nn as nn
 
-from src.model.gce_layer import GCELayerDishIngredient, GCELayerUserDish
+from src.model.gce_layer import GCELayerDishIngredient, GCELayerUserIngredient
 
 
 # Graph-Aware Recommender Systems with Heterogeneous Graph Fusion for Enhanced Ingredient Recommendations
@@ -27,18 +27,16 @@ class FactorizationMachineLayer(nn.Module):
         return torch.Tensor(0.5 * ix)
 
 
-class FactorizationMachineModel_withGCN(torch.nn.Module):
+class FactorizationMachineModel_withGCN(nn.Module):
     def __init__(
         self,
         num_users: int,
         num_dishes: int,
         num_ingredients: int,
         embedding_dim: int,
-        field_dims: List[int],
+        field_dims: int,
         features_dish_ingredient: torch.Tensor,
-        features_user_dish: torch.Tensor,
-        A_dish_ingredient: Optional[torch.Tensor] = None,
-        A_user_dish: Optional[torch.Tensor] = None,
+        features_user_ingredient: torch.Tensor,
         cooccurrence_weight: float = 1.0,
     ) -> None:
         super().__init__()
@@ -56,17 +54,13 @@ class FactorizationMachineModel_withGCN(torch.nn.Module):
             field_dims=field_dims,
             embedding_dim=embedding_dim,
             features_dish_ingredient=features_dish_ingredient,
-            A_dish_ingredient=A_dish_ingredient,
-            attention=False,
             cooccurrence_weight=cooccurrence_weight,
         )
-        self.gce_user_dish = GCELayerUserDish(
+        self.gce_user_dish = GCELayerUserIngredient(
             field_dims=field_dims,
             embedding_dim=embedding_dim,
-            features_user_dish=features_user_dish,
-            A_user_dish=A_user_dish,
-            attention=False,
-            cooccurrence_weight=cooccurrence_weight,
+            features_user_ingredient=features_user_ingredient,
+            cooccurrence_weight=1.0,
         )
 
         self.projection_layer = nn.Linear(2 * embedding_dim, embedding_dim)

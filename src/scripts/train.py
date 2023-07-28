@@ -1,132 +1,115 @@
 import os
 import sys
+from argparse import ArgumentParser, Namespace
+from statistics import mean
+from typing import Tuple
 
 import torch
 import torch.nn as nn
-from sklearn.metrics import label_ranking_average_precision_score, ndcg_score
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-
-from src.model.factorisation_machine import FactorizationMachineModel_withGCN
+from sklearn.metrics import label_ranking_average_precision_score
+from torch.optim import Optimizer
+from torch.utils.data import DataLoader, Dataset
+from tqdm import trange
 
 sys.path.append(os.getcwd())
+from src.model.factorisation_machine import FactorizationMachineModel_withGCN
+from src.utils.metrics import getHitRatio, getNDCG
 
 
-def train(model, train_loader, optimizer, criterion, device):
+def test(
+    model: nn.Module, test_x: Dataset, device: torch.device, topk: int = 10
+) -> Tuple[float, float, float]:
+    # Test the HR, NDCG, MPR for the model @topK
+    model.eval()
+
+    HR, NDCG, MPR = [], [], []
+    for user_test in test_x:
+        gt_item = user_test[0][1]
+        predictions = model.predict(user_test, device)
+        _, indices = torch.topk(predictions, topk)
+        recommend_list = user_test[indices.cpu().detach().numpy()][:, 1]
+
+        HR.append(getHitRatio(recommend_list, gt_item))
+        NDCG.append(getNDCG(recommend_list, gt_item))
+        MPR.append(label_ranking_average_precision_score(gt_item, recommend_list))
+    return mean(HR), mean(NDCG), mean(MPR)
+
+
+def train_one_epoch(
+    model: nn.Module,
+    optimizer: Optimizer,
+    data_loader: DataLoader,
+    criterion: nn.Module,
+    device: torch.device,
+) -> float:
     model.train()
-    train_loss = 0.0
-    num_batches = len(train_loader)
+    total_loss = []
 
-    for data in tqdm(train_loader, desc="Training..."):
-        interaction_pairs, adjacency_matrix = data
-        interaction_pairs = interaction_pairs.to(device)
-        adjacency_matrix = adjacency_matrix.to(device)
+    for _, (interactions, targets) in enumerate(data_loader):
+        interactions = interactions.to(device)
+        targets = targets.to(device)
 
-        optimizer.zero_grad()
-        outputs = model(interaction_pairs, adjacency_matrix)
-        loss = criterion(outputs, target)  # Replace 'target' with your target variable
+        predictions = model(interactions)
+
+        loss = criterion(predictions, targets.float())
+        model.zero_grad()
         loss.backward()
         optimizer.step()
+        total_loss.append(loss.item())
 
-        train_loss += loss.item()
-
-    avg_train_loss = train_loss / num_batches
-    return avg_train_loss
+    return mean(total_loss)
 
 
-def evaluate(model, test_loader, device):
-    model.eval()
-    with torch.no_grad():
-        # Lists to store true and predicted labels
-        true_labels = []
-        predicted_labels = []
+def train(args: Namespace) -> None:
+    device = torch.device(args.device)
 
-        for data in tqdm(test_loader, desc="Evaluating..."):
-            interaction_pairs, adjacency_matrix = data
-            interaction_pairs = interaction_pairs.to(device)
-            adjacency_matrix = adjacency_matrix.to(device)
+    # Load preprocessed datasets using
+    user_ingredient_train = torch.load("user_ingredient_train.pt")
+    dish_ingredient_train = torch.load("dish_ingredient_train.pt")
+    user_ingredient_test = torch.load("user_ingredient_test.pt")
 
-            model(interaction_pairs, adjacency_matrix)
+    fm_gcn = FactorizationMachineModel_withGCN(
+        num_users=args.num_users,
+        num_dishes=args.num_dishes,
+        num_ingredients=args.num_ingredients,
+        embedding_dim=args.embedding_dim,
+        field_dims=3,
+        features_dish_ingredient=dish_ingredient_train,
+        features_user_ingredient=user_ingredient_train,
+        cooccurrence_weight=2.0,
+    ).to(device)
+    criterion = nn.BCEWithLogitsLoss(reduction="mean")
+    optimizer = torch.optim.Adam(params=fm_gcn.parameters(), lr=0.01)
+    data_loader = DataLoader(
+        user_ingredient_train, batch_size=args.batch_size, shuffle=True
+    )
 
-            # Your logic to convert the model outputs to top-k recommendations
-            # For example, you can use torch.topk to get top-k indices
-            # and convert them to binary labels indicating whether an ingredient is recommended or not.
+    # Run the training loop
+    for epoch_i in trange(args.num_epochs):
+        train_loss = train_one_epoch(
+            model=fm_gcn,
+            optimizer=optimizer,
+            data_loader=data_loader,
+            criterion=criterion,
+            device=device,
+        )
+        hr, ndcg, mpr = test(fm_gcn, user_ingredient_test, device, topk=args.topk)
 
-            true_labels.append(...)  # Replace with the true binary labels
-            predicted_labels.append(...)  # Replace with the predicted binary labels
-
-        # Calculate NDCG and MPR
-        ndcg = ndcg_score(true_labels, predicted_labels)
-        mpr = label_ranking_average_precision_score(true_labels, predicted_labels)
-
-    return ndcg, mpr
+        print(f"Epoch: {epoch_i + 1}")
+        print(f"train/loss: {train_loss}")
+        print(f"eval/HR@{args.topk}: {hr}")
+        print(f"eval/NDCG@{args.topk}: {ndcg}")
+        print(f"eval/MPR@{args.topk}: {mpr}")
 
 
 if __name__ == "__main__":
-    # Set your hyperparameters and evaluation settings
-    batch_size = 64
-    learning_rate = 0.001
-    num_epochs = 10
-    top_k = 10  # Top-k recommendations for evaluation
-
-    # Load preprocessed datasets
-    user_ingredient_train = torch.load("user_ingredient_train.joblib")
-    dish_ingredient_train = torch.load("dish_ingredient_train.joblib")
-    user_ingredient_test = torch.load("user_ingredient_test.joblib")
-    dish_ingredient_test = torch.load("dish_ingredient_test.joblib")
-
-    # Create DataLoaders for training and testing
-    user_ingredient_train_loader = DataLoader(
-        user_ingredient_train, batch_size=batch_size, shuffle=True
-    )
-    dish_ingredient_train_loader = DataLoader(
-        dish_ingredient_train, batch_size=batch_size, shuffle=True
-    )
-    user_ingredient_test_loader = DataLoader(
-        user_ingredient_test, batch_size=batch_size, shuffle=False
-    )
-    dish_ingredient_test_loader = DataLoader(
-        dish_ingredient_test, batch_size=batch_size, shuffle=False
-    )
-
-    # Initialize the model and optimizer
-    #     def __init__(self, num_users, num_dishes, num_ingredients, embed_dim, field_dims, features_dish_ingredient, features_user_dish, A_dish_ingredient, A_user_dish, cooccurrence_weight=1.0) -> None:
-    model = FactorizationMachineModel_withGCN(
-        field_dims=[...], embed_dim=...
-    )  # Replace with appropriate field_dims and embed_dim
-    model_gcn_att = None
-    gat_optimizer = torch.optim.Adam(params=model_gcn_att.parameters(), lr=0.01)
-
-    # Define loss function
-    criterion = (
-        nn.BCEWithLogitsLoss()
-    )  # Binary Cross-Entropy Loss for multi-label classification
-
-    # Move model and data to GPU if available
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-
-    # Training loop
-    for epoch in range(num_epochs):
-        train_loss_user_ingredient = train(
-            model, user_ingredient_train_loader, gat_optimizer, criterion, device
-        )
-        train_loss_dish_ingredient = train(
-            model, dish_ingredient_train_loader, gat_optimizer, criterion, device
-        )
-
-        print(f"Epoch {epoch + 1}/{num_epochs}")
-        print(f"User-Ingredient Training Loss: {train_loss_user_ingredient:.4f}")
-        print(f"Dish-Ingredient Training Loss: {train_loss_dish_ingredient:.4f}")
-
-        # Evaluation on test data
-        ndcg_user, mpr_user = evaluate(model, user_ingredient_test_loader, device)
-        ndcg_dish, mpr_dish = evaluate(model, dish_ingredient_test_loader, device)
-
-        print(f"NDCG for User-Ingredient: {ndcg_user:.4f}")
-        print(f"MPR for User-Ingredient: {mpr_user:.4f}")
-        print(f"NDCG for Dish-Ingredient: {ndcg_dish:.4f}")
-        print(f"MPR for Dish-Ingredient: {mpr_dish:.4f}")
-
-    # Save the trained model
-    torch.save(model.state_dict(), "trained_model.pt")
+    parser = ArgumentParser()
+    parser.add_argument("--device", type=str, default="mps")
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--num_epochs", type=int, default=10)
+    parser.add_argument("--embedding_dim", type=int, default=32)
+    parser.add_argument("--num_users", type=int, default=499)
+    parser.add_argument("--num_dishes", type=int, default=13501)
+    parser.add_argument("--num_ingredients", type=int, default=14548)
+    parser.add_argument("--topk", type=int, default=5)
+    train(args=parser.parse_args())
